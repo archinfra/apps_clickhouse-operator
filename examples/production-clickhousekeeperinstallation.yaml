@@ -1,0 +1,60 @@
+apiVersion: clickhouse-keeper.altinity.com/v1
+kind: ClickHouseKeeperInstallation
+metadata:
+  name: clickhouse-operator-keeper
+  namespace: clickhouse
+spec:
+  configuration:
+    clusters:
+      - name: default
+        layout:
+          replicasCount: 3
+    settings:
+      logger/level: "information"
+      logger/console: "true"
+      listen_host: "0.0.0.0"
+      keeper_server/tcp_port: "2181"
+      keeper_server/four_letter_word_white_list: "*"
+      prometheus/endpoint: "/metrics"
+      prometheus/port: "7000"
+      prometheus/metrics: "true"
+      prometheus/events: "true"
+      prometheus/asynchronous_metrics: "true"
+      prometheus/status_info: "false"
+  defaults:
+    templates:
+      podTemplate: keeper-pod-template
+      volumeClaimTemplate: keeper-data-volume
+  templates:
+    podTemplates:
+      - name: keeper-pod-template
+        metadata:
+          labels:
+            app.kubernetes.io/name: clickhouse-keeper
+        spec:
+          containers:
+            - name: clickhouse-keeper
+              image: sealos.hub:5000/kube4/clickhouse-keeper:25.3
+              imagePullPolicy: IfNotPresent
+              ports:
+                - name: client
+                  containerPort: 2181
+                - name: metrics
+                  containerPort: 7000
+              resources:
+                requests:
+                  cpu: "500m"
+                  memory: "1Gi"
+                limits:
+                  cpu: "1"
+                  memory: "2Gi"
+          securityContext:
+            fsGroup: 101
+    volumeClaimTemplates:
+      - name: keeper-data-volume
+        spec:
+          accessModes:
+            - ReadWriteOnce
+          resources:
+            requests:
+              storage: 20Gi

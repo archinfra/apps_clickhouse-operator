@@ -1,0 +1,91 @@
+apiVersion: clickhouse.altinity.com/v1
+kind: ClickHouseInstallation
+metadata:
+  name: clickhouse-operator-cluster
+  namespace: clickhouse
+spec:
+  defaults:
+    templates:
+      podTemplate: clickhouse-pod-template
+      serviceTemplate: clickhouse-service-template
+      dataVolumeClaimTemplate: clickhouse-data-volume
+      logVolumeClaimTemplate: clickhouse-log-volume
+  configuration:
+    users:
+      admin/k8s_secret_password: clickhouse/clickhouse-operator-clickhouse-auth/admin_password
+      admin/networks/ip:
+        - "::/0"
+        - "0.0.0.0/0"
+      admin/profile: default
+      admin/quota: default
+    settings:
+      prometheus/endpoint: "/metrics"
+      prometheus/port: "9363"
+      prometheus/metrics: "true"
+      prometheus/events: "true"
+      prometheus/asynchronous_metrics: "true"
+      prometheus/status_info: "true"
+    clusters:
+      - name: default
+        layout:
+          shardsCount: 1
+          replicasCount: 1
+  templates:
+    serviceTemplates:
+      - name: clickhouse-service-template
+        generateName: clickhouse-operator-clickhouse
+        spec:
+          type: ClusterIP
+          ports:
+            - name: http
+              port: 8123
+            - name: tcp
+              port: 9000
+    podTemplates:
+      - name: clickhouse-pod-template
+        metadata:
+          labels:
+            app.kubernetes.io/name: clickhouse
+        spec:
+          containers:
+            - name: clickhouse
+              image: sealos.hub:5000/kube4/clickhouse-server:24.8
+              imagePullPolicy: IfNotPresent
+              ports:
+                - name: http
+                  containerPort: 8123
+                - name: tcp
+                  containerPort: 9000
+                - name: interserver
+                  containerPort: 9009
+                - name: metrics
+                  containerPort: 9363
+              volumeMounts:
+                - name: clickhouse-data-volume
+                  mountPath: /var/lib/clickhouse
+                - name: clickhouse-log-volume
+                  mountPath: /var/log/clickhouse-server
+              resources:
+                requests:
+                  cpu: "2"
+                  memory: "4Gi"
+                limits:
+                  cpu: "4"
+                  memory: "8Gi"
+          securityContext:
+            fsGroup: 101
+    volumeClaimTemplates:
+      - name: clickhouse-data-volume
+        spec:
+          accessModes:
+            - ReadWriteOnce
+          resources:
+            requests:
+              storage: 200Gi
+      - name: clickhouse-log-volume
+        spec:
+          accessModes:
+            - ReadWriteOnce
+          resources:
+            requests:
+              storage: 20Gi

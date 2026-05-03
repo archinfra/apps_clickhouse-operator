@@ -1,58 +1,81 @@
 # apps_clickhouse-operator
 
-Offline `.run` installer for the Altinity ClickHouse Operator Helm chart.
+Offline `.run` installer for a production-oriented ClickHouse delivery on Kubernetes.
 
-This repository follows the same air-gapped packaging pattern used by `app_prometheus`:
+This repository no longer stops at `CRD + operator`. The default install path is:
 
-- vendor the upstream Helm chart inside `charts/`
-- package all required images as tar archives into a self-extracting `.run`
-- rewrite image references to a target registry during install
-- build release artifacts through GitHub Actions instead of relying on local foreign image access
+- Altinity ClickHouse Operator
+- operator metrics exporter
+- a real `ClickHouseInstallation` with persistent volumes
+- a real `ClickHouseKeeperInstallation` for replicated mode
+- optional Prometheus Operator monitoring resources
+- optional Grafana dashboards from the vendored upstream chart
+
+The package still supports `operator-only`, but that is now an explicit profile instead of the only outcome.
 
 ## Upstream baseline
 
-- Upstream chart source: `Altinity/clickhouse-operator`
-- Vendored chart path: `deploy/helm/clickhouse-operator`
-- Chart version: `0.26.3`
-- App version: `0.26.3`
+- upstream operator repo: `Altinity/clickhouse-operator`
+- vendored chart path: `deploy/helm/clickhouse-operator`
+- chart version: `0.26.3`
+- app version: `0.26.3`
 
-The installer intentionally pins the CRD hook image instead of inheriting the chart's `latest` default:
+Vendored examples are under [examples](C:/Users/yuanyp8/Desktop/archinfra/apps_clickhouse-operator/examples):
 
-- `docker.io/bitnamilegacy/kubectl:1.33.4-debian-12-r0`
+- [production-clickhouseinstallation.yaml](C:/Users/yuanyp8/Desktop/archinfra/apps_clickhouse-operator/examples/production-clickhouseinstallation.yaml)
+- [production-clickhousekeeperinstallation.yaml](C:/Users/yuanyp8/Desktop/archinfra/apps_clickhouse-operator/examples/production-clickhousekeeperinstallation.yaml)
+- [single-clickhouseinstallation.yaml](C:/Users/yuanyp8/Desktop/archinfra/apps_clickhouse-operator/examples/single-clickhouseinstallation.yaml)
 
-Bundled images:
+## What the installer builds
+
+The default `production` profile installs:
+
+- 1 operator deployment
+- 1 `ClickHouseInstallation`
+- 1 `ClickHouseKeeperInstallation`
+- ClickHouse topology: `1 shard x 2 replicas`
+- Keeper topology: `3 replicas`
+- ClickHouse PVCs: `200Gi` data + `20Gi` log per replica
+- Keeper PVCs: `20Gi` per replica
+- internal service exposure with `ClusterIP`
+
+The `single` profile installs:
+
+- operator
+- 1 persistent `ClickHouseInstallation`
+- topology `1 shard x 1 replica`
+- no Keeper
+
+The `operator-only` profile installs:
+
+- only operator-side resources
+
+## Bundled images
 
 - `docker.io/altinity/clickhouse-operator:0.26.3`
 - `docker.io/altinity/metrics-exporter:0.26.3`
 - `docker.io/bitnamilegacy/kubectl:1.33.4-debian-12-r0`
+- `docker.io/clickhouse/clickhouse-server:24.8`
+- `docker.io/clickhouse/clickhouse-keeper:25.3`
 
-## Repository layout
-
-```text
-apps_clickhouse-operator/
-  build.sh
-  install.sh
-  images/image.json
-  charts/clickhouse-operator/
-  .github/workflows/build-offline-installer.yml
-```
+The CRD hook image is pinned deliberately. The upstream chart leaves it at `latest`, which is not acceptable for air-gapped reproducible delivery.
 
 ## Build strategy
 
-The recommended path is GitHub Actions.
+Recommended path: GitHub Actions.
 
 Reason:
 
 - local environments may not be able to pull upstream images from foreign registries
-- the workflow already does the required `amd64` / `arm64` matrix build
-- tag builds automatically publish release assets
+- the workflow already does the `amd64` / `arm64` matrix build
+- tag builds publish `.run` and `.sha256` release assets
 
-Push flow:
+Build workflow:
 
 ```bash
 git push origin main
-git tag v0.1.0
-git push origin v0.1.0
+git tag v0.2.0
+git push origin v0.2.0
 ```
 
 Workflow outputs:
@@ -61,7 +84,7 @@ Workflow outputs:
 - `dist/clickhouse-operator-installer-arm64.run`
 - matching `.sha256` files
 
-If your local environment can reach the upstream registries, local build still works:
+If your environment can reach upstream registries, local build still works:
 
 ```bash
 ./build.sh --arch amd64
@@ -83,13 +106,31 @@ Show help:
 ./clickhouse-operator-installer-amd64.run --help
 ```
 
-Basic install:
+Default production install:
 
 ```bash
 ./clickhouse-operator-installer-amd64.run install -y
 ```
 
-Enable ServiceMonitor and Grafana dashboard provisioning for a cluster that already has a Prometheus/Grafana stack:
+Single replica install:
+
+```bash
+./clickhouse-operator-installer-amd64.run install \
+  --profile single \
+  --storage-class nfs \
+  --data-size 100Gi \
+  -y
+```
+
+Operator only:
+
+```bash
+./clickhouse-operator-installer-amd64.run install \
+  --profile operator-only \
+  -y
+```
+
+Production install with monitoring:
 
 ```bash
 ./clickhouse-operator-installer-amd64.run install \
@@ -98,7 +139,7 @@ Enable ServiceMonitor and Grafana dashboard provisioning for a cluster that alre
   -y
 ```
 
-Reuse images that are already present in the target registry:
+Reuse images that already exist in the target registry:
 
 ```bash
 ./clickhouse-operator-installer-amd64.run install \
@@ -107,13 +148,18 @@ Reuse images that are already present in the target registry:
   -y
 ```
 
-Add extra Helm overrides:
+Tune cluster sizing:
 
 ```bash
 ./clickhouse-operator-installer-amd64.run install \
-  --helm-set operator.resources.requests.cpu=100m \
-  --helm-set operator.resources.requests.memory=256Mi \
-  --helm-arg --debug \
+  --profile production \
+  --shards 2 \
+  --replicas 2 \
+  --keeper-replicas 3 \
+  --data-size 500Gi \
+  --log-size 50Gi \
+  --storage-class fast-ssd \
+  --admin-password 'StrongPasswordHere' \
   -y
 ```
 
@@ -129,31 +175,29 @@ Uninstall:
 ./clickhouse-operator-installer-amd64.run uninstall -y
 ```
 
-Uninstall and delete CRDs:
+Uninstall and remove CRDs:
 
 ```bash
 ./clickhouse-operator-installer-amd64.run uninstall --delete-crds -y
 ```
 
-## Defaults
+## Important flags
 
-- release name: `clickhouse-operator`
-- namespace: `clickhouse`
-- registry prefix: `sealos.hub:5000/kube4`
-- image pull policy: `IfNotPresent`
-- operator secret username: `clickhouse_operator`
-- operator secret password: `clickhouse_operator_password`
-
-Optional behavior flags:
-
-- `--disable-crd-hook`
-- `--disable-metrics-exporter`
+- `--profile production|single|operator-only`
+- `--storage-class <name>`
+- `--data-size <size>`
+- `--log-size <size>`
+- `--shards <n>`
+- `--replicas <n>`
+- `--keeper-replicas <n>`
+- `--service-type ClusterIP|NodePort|LoadBalancer`
+- `--admin-user <name>`
+- `--admin-password <pass>`
 - `--enable-service-monitor`
 - `--enable-dashboards`
-- `--namespace-scoped-rbac`
 
 ## Notes
 
-- This change set does not perform local install verification.
-- The intended verification path is the GitHub Actions build and downstream cluster-side install by environments that can reach the target registry.
-- The vendored Helm chart is kept as close to upstream as possible. Image pinning and registry remapping are handled by the installer values, not by patching chart logic.
+- This repository is intended to deliver a usable ClickHouse runtime, not only the operator control plane.
+- The default production profile uses `ClickHouseKeeperInstallation` for the replicated starter topology.
+- I did not run local install verification in this environment. Validation stayed at script syntax, JSON parsing, and repo consistency, while image build and packaging are intended to run in GitHub Actions.
