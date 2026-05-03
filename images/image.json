@@ -1,0 +1,44 @@
+[
+  {
+    "arch": "amd64",
+    "platform": "linux/amd64",
+    "pull": "docker.io/altinity/clickhouse-operator:0.26.3",
+    "tag": "sealos.hub:5000/kube4/clickhouse-operator:0.26.3",
+    "tar": "clickhouse-operator-0.26.3-amd64.tar"
+  },
+  {
+    "arch": "arm64",
+    "platform": "linux/arm64",
+    "pull": "docker.io/altinity/clickhouse-operator:0.26.3",
+    "tag": "sealos.hub:5000/kube4/clickhouse-operator:0.26.3",
+    "tar": "clickhouse-operator-0.26.3-arm64.tar"
+  },
+  {
+    "arch": "amd64",
+    "platform": "linux/amd64",
+    "pull": "docker.io/altinity/metrics-exporter:0.26.3",
+    "tag": "sealos.hub:5000/kube4/metrics-exporter:0.26.3",
+    "tar": "metrics-exporter-0.26.3-amd64.tar"
+  },
+  {
+    "arch": "arm64",
+    "platform": "linux/arm64",
+    "pull": "docker.io/altinity/metrics-exporter:0.26.3",
+    "tag": "sealos.hub:5000/kube4/metrics-exporter:0.26.3",
+    "tar": "metrics-exporter-0.26.3-arm64.tar"
+  },
+  {
+    "arch": "amd64",
+    "platform": "linux/amd64",
+    "pull": "docker.io/bitnamilegacy/kubectl:1.33.4-debian-12-r0",
+    "tag": "sealos.hub:5000/kube4/kubectl:1.33.4-debian-12-r0",
+    "tar": "kubectl-1.33.4-debian-12-r0-amd64.tar"
+  },
+  {
+    "arch": "arm64",
+    "platform": "linux/arm64",
+    "pull": "docker.io/bitnamilegacy/kubectl:1.33.4-debian-12-r0",
+    "tag": "sealos.hub:5000/kube4/kubectl:1.33.4-debian-12-r0",
+    "tar": "kubectl-1.33.4-debian-12-r0-arm64.tar"
+  }
+]
